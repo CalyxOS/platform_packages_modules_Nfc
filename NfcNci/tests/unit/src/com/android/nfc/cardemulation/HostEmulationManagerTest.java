@@ -148,6 +148,7 @@ public class HostEmulationManagerTest {
         MockitoAnnotations.initMocks(this);
         mTestableLooper = TestableLooper.get(this);
         when(NfcAdapter.getDefaultAdapter(mContext)).thenReturn(mNfcAdapter);
+        when(mNfcAdapter.getAdapterState()).thenReturn(NfcAdapter.STATE_ON);
         when(UserHandle.getUserHandleForUid(eq(USER_ID))).thenReturn(USER_HANDLE);
         when(UserHandle.of(eq(USER_ID))).thenReturn(USER_HANDLE);
         when(NfcService.getInstance()).thenReturn(mNfcService);
@@ -345,6 +346,7 @@ public class HostEmulationManagerTest {
     public void testOnPollingLoopDetected_paymentServiceAlreadyBound_4Frames()
             throws PackageManager.NameNotFoundException, RemoteException {
         ApduServiceInfo serviceWithFilter = mock(ApduServiceInfo.class);
+        when(serviceWithFilter.isOnHost()).thenReturn(true);
         when(serviceWithFilter.getPollingLoopFilters()).thenReturn(POLLING_LOOP_FILTER);
         when(serviceWithFilter.getPollingLoopPatternFilters()).thenReturn(List.of());
         when(serviceWithFilter.getShouldAutoTransact(anyString())).thenReturn(true);
@@ -354,6 +356,8 @@ public class HostEmulationManagerTest {
         when(mContext.getPackageManager()).thenReturn(mPackageManager);
         when(mRegisteredAidCache.getPreferredService())
                 .thenReturn(new ComponentNameAndUser(USER_ID, WALLET_PAYMENT_SERVICE));
+        when(mRegisteredAidCache.getPreferredServiceInfo())
+                .thenReturn(serviceWithFilter);
         ApplicationInfo applicationInfo = new ApplicationInfo();
         applicationInfo.uid = USER_ID;
         when(mPackageManager.getApplicationInfo(eq(WALLET_HOLDER_PACKAGE_NAME), eq(0)))
@@ -1353,6 +1357,7 @@ public class HostEmulationManagerTest {
     @Test
     public void testOnPollingLoopDetected_noServiceBound() {
         ApduServiceInfo serviceWithFilter = mock(ApduServiceInfo.class);
+        when(serviceWithFilter.isOnHost()).thenReturn(true);
         when(serviceWithFilter.getPollingLoopFilters()).thenReturn(POLLING_LOOP_FILTER);
         when(serviceWithFilter.getPollingLoopPatternFilters()).thenReturn(List.of());
         mHostEmulationManager.updatePollingLoopFilters(USER_ID, List.of(serviceWithFilter));
@@ -1360,6 +1365,8 @@ public class HostEmulationManagerTest {
         // Preferred payment service is defined, but not bound
         when(mRegisteredAidCache.getPreferredService())
                 .thenReturn(new ComponentNameAndUser(USER_ID, WALLET_PAYMENT_SERVICE));
+        when(mRegisteredAidCache.getPreferredServiceInfo())
+                .thenReturn(serviceWithFilter);
         when(mRegisteredAidCache.getPreferredPaymentService())
                 .thenReturn(new ComponentNameAndUser(USER_ID, WALLET_PAYMENT_SERVICE));
         mHostEmulationManager.mPaymentServiceName = WALLET_PAYMENT_SERVICE;
@@ -1396,6 +1403,7 @@ public class HostEmulationManagerTest {
         when(mContext.bindServiceAsUser(any(), any(), anyInt(), any())).thenReturn(true);
 
         ApduServiceInfo serviceWithFilter = mock(ApduServiceInfo.class);
+        when(serviceWithFilter.isOnHost()).thenReturn(true);
         when(serviceWithFilter.getPollingLoopFilters()).thenReturn(POLLING_LOOP_FILTER);
         when(serviceWithFilter.getPollingLoopPatternFilters()).thenReturn(List.of());
         mHostEmulationManager.updatePollingLoopFilters(USER_ID, List.of(serviceWithFilter));
@@ -1403,6 +1411,8 @@ public class HostEmulationManagerTest {
         // Preferred payment service is defined, but not bound
         when(mRegisteredAidCache.getPreferredService())
                 .thenReturn(new ComponentNameAndUser(USER_ID, WALLET_PAYMENT_SERVICE));
+        when(mRegisteredAidCache.getPreferredServiceInfo())
+                .thenReturn(serviceWithFilter);
         when(mRegisteredAidCache.getPreferredPaymentService())
                 .thenReturn(new ComponentNameAndUser(USER_ID, WALLET_PAYMENT_SERVICE));
         mHostEmulationManager.mPaymentServiceName = null;

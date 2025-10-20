@@ -260,7 +260,12 @@ public final class CardEmulation {
 
     /**
      * Property name used to indicate that an application wants to allow associated services
-     * to share the same AID routing priority when this application is the role holder.
+     * to share the same AID routing priority when this application is the role holder. Wallet role
+     * holder can either:
+     * <li> Set "android:value" to "true". This will allow any package signed by the same
+     * certificate to request for role holder priority.</li>
+     * <li> Set "android:value" to some other package name. This will only allow this package to
+     * request for role holder priority (can be signed by different certificates).</li>
      * <p>
      * Example:
      * <pre>
@@ -270,6 +275,15 @@ public final class CardEmulation {
      *       <property android:name="android.nfc.cardemulation.PROPERTY_ALLOW_SHARED_ROLE_PRIORITY"
      *         android:value="true"/>
      *     </application>
+     *     }
+     * </pre>
+     * <pre>
+     *     {@code
+     *     <service>
+     *       ...
+     *       <property android:name="android.nfc.cardemulation.PROPERTY_ALLOW_SHARED_ROLE_PRIORITY"
+     *         android:value="com.org.example"/>
+     *     </service>
      *     }
      * </pre>
      */
@@ -830,6 +844,9 @@ public final class CardEmulation {
      * <p>Note that this preference is not persisted by the OS, and hence must be
      * called every time the Activity is resumed.
      *
+     * <p>Starting with {@link Build.VERSION_CODES#CINNAMON_BUN}, this
+     * method will prefer all services matching the package name of the activity.
+     *
      * @param activity The activity which prefers this service to be invoked
      * @param service The service to be preferred while this activity is in the foreground
      * @return whether the registration was successful
@@ -1140,9 +1157,13 @@ public final class CardEmulation {
      * otherwise a call to this method will fail and throw {@link SecurityException}.
      * @param activity The Activity that requests NFC controller routing table to be changed.
      * @param protocol ISO-DEP route destination, where the possible inputs are defined
-     *                 in {@link ProtocolAndTechnologyRoute}.
+     *                 in {@link ProtocolAndTechnologyRoute}. However
+     *                 {@link #PROTOCOL_AND_TECHNOLOGY_ROUTE_DEFAULT} and
+     *                 {@link #PROTOCOL_AND_TECHNOLOGY_ROUTE_NDEF_NFCEE} are invalid inputs.
      * @param technology Tech-A, Tech-B and Tech-F route destination, where the possible inputs
-     *                   are defined in {@link ProtocolAndTechnologyRoute}
+     *                   are defined in {@link ProtocolAndTechnologyRoute}. However
+     *                   {@link #PROTOCOL_AND_TECHNOLOGY_ROUTE_DEFAULT} and
+     *                   {@link #PROTOCOL_AND_TECHNOLOGY_ROUTE_NDEF_NFCEE} are invalid inputs.
      * @throws SecurityException if the caller is not the preferred NFC service
      * @throws IllegalArgumentException if the activity is not resumed or the caller is not in the
      * foreground.
@@ -1158,6 +1179,12 @@ public final class CardEmulation {
             @ProtocolAndTechnologyRoute int technology) {
         if (!activity.isResumed()) {
             throw new IllegalArgumentException("Activity must be resumed.");
+        }
+        if (protocol >= PROTOCOL_AND_TECHNOLOGY_ROUTE_DEFAULT) {
+            throw new IllegalArgumentException("Invalid protocol inputs.");
+        }
+        if (technology >= PROTOCOL_AND_TECHNOLOGY_ROUTE_DEFAULT) {
+            throw new IllegalArgumentException("Invalid technology inputs.");
         }
         String protocolRoute = routeIntToString(protocol);
         String technologyRoute = routeIntToString(technology);

@@ -390,15 +390,7 @@ public class HostEmulationManager {
         });
     }
 
-    private Messenger getForegroundServiceOrDefault() {
-        Pair<Messenger, ComponentName> pair = getForegroundServiceAndNameOrDefault();
-        if (pair == null) {
-            return null;
-        }
-        return pair.first;
-    }
-
-    private Pair<Messenger, ComponentName> getForegroundServiceAndNameOrDefault() {
+    private Pair<Messenger, ComponentName> bindToForegroundServiceOrDefaultForPollingLoop() {
         ComponentNameAndUser preferredService = mAidCache.getPreferredService();
         int preferredServiceUserId = preferredService.getUserId();
         ComponentName preferredServiceName = preferredService.getComponentName();
@@ -406,7 +398,10 @@ public class HostEmulationManager {
         if (preferredServiceName == null || preferredServiceUserId < 0) {
             return null;
         }
-
+        ApduServiceInfo preferredServiceInfo = mAidCache.getPreferredServiceInfo();
+        if (preferredServiceInfo == null || !preferredServiceInfo.isOnHost()) {
+            return null;
+        }
         return new Pair<>(bindServiceIfNeededLocked(preferredServiceUserId, preferredServiceName),
             preferredServiceName);
     }
@@ -511,6 +506,12 @@ public class HostEmulationManager {
 
         void addServiceToList(ComponentName service) {
             mServicePackageNames.add(service.getPackageName());
+            // If this is the payment service, also add the associated services to the list of
+            // packages to monitor.
+            if (service.equals(mAidCache.getPreferredPaymentService().getComponentName())) {
+                mServicePackageNames.addAll(
+                        mAidCache.getPreferredPaymentServiceAssociatedRolePackageNames());
+            }
         }
 
         boolean arePackagesInForeground() {
@@ -584,6 +585,12 @@ public class HostEmulationManager {
         }
     }
 
+    void onNfcFHostEmulationActivated() {
+        synchronized (mLock) {
+            clearAutoDisableObserveModeRunnableLocked();
+        }
+    }
+
     void onNfcFHostEmulationDeactivated() {
         synchronized (mLock) {
             clearAutoDisableObserveModeRunnableLocked();
@@ -605,7 +612,7 @@ public class HostEmulationManager {
 
     @TargetApi(35)
     public void onPollingLoopDetected(List<PollingFrame> pollingFrames) {
-        Log.d(TAG, "onPollingLoopDetected: size: " + pollingFrames.size());
+        if (DBG) Log.d(TAG, "onPollingLoopDetected: " + pollingFrames);
         synchronized (mLock) {
             rescheduleInactivityChecks();
             // We need to have this check here in addition to the one in onFieldChangeDetected,
@@ -631,7 +638,7 @@ public class HostEmulationManager {
                 } else if (pollingFrame.getType()
                         == PollingFrame.POLLING_LOOP_TYPE_F) {
                     Pair<Messenger, ComponentName> serviceAndName =
-                        getForegroundServiceAndNameOrDefault();
+                            bindToForegroundServiceOrDefaultForPollingLoop();
                     if (serviceAndName != null) {
                         sendFrameToServiceLocked(serviceAndName.first, serviceAndName.second,
                             pollingFrame);
@@ -641,14 +648,35 @@ public class HostEmulationManager {
                     if (DBG) Log.d(TAG, "onPollingLoopDetected: POLLING_LOOP_TYPE_UNKNOWN");
                     byte[] data = pollingFrame.getData();
                     String dataStr = HexFormat.of().formatHex(data).toUpperCase(Locale.ROOT);
-                    List<ApduServiceInfo> serviceInfos =
-                            mPollingLoopFilters.get(ActivityManager.getCurrentUser()).get(dataStr);
+                    Map<String, List<ApduServiceInfo>> MappingForUser =
+                            mPollingLoopFilters.get(ActivityManager.getCurrentUser());
+                    List<ApduServiceInfo> serviceInfos;
+                    if (MappingForUser != null) {
+                        serviceInfos = MappingForUser.get(dataStr);
+                    } else {
+                        Log.e(TAG, "MappingForUser is null, CurrentUser: "
+                                + ActivityManager.getCurrentUser());
+                        serviceInfos = null;
+                    }
                     Map<Pattern, List<ApduServiceInfo>> patternMappingForUser =
                             mPollingLoopPatternFilters.get(ActivityManager.getCurrentUser());
-                    Set<Pattern> patternSet = patternMappingForUser.keySet();
-                    List<Pattern> matchedPatterns = patternSet.stream()
+                    Set<Pattern> patternSet;
+                    if (patternMappingForUser != null) {
+                        patternSet = patternMappingForUser.keySet();
+                    } else {
+                        Log.e(TAG, "patternMappingForUser is null, CurrentUser: "
+                                + ActivityManager.getCurrentUser());
+                        patternSet = null;
+                    }
+                    List<Pattern> matchedPatterns;
+                    if (patternSet != null) {
+                        matchedPatterns = patternSet.stream()
                             .filter(p -> p.matcher(dataStr).matches()).toList();
-                    if (!matchedPatterns.isEmpty()) {
+                    } else {
+                        Log.e(TAG, "patternSet is null");
+                        matchedPatterns = null;
+                    }
+                    if (matchedPatterns != null && !matchedPatterns.isEmpty()) {
                         if (serviceInfos == null) {
                             serviceInfos = new ArrayList<ApduServiceInfo>();
                         }
@@ -685,6 +713,10 @@ public class HostEmulationManager {
                                     mFirmwareExitFrame.getData(), pollingFrame.getData())) {
                                 mFirmwareExitFrame = null;
                                 mEnableObserveModeAfterTransaction = true;
+                                // This is needed to ensure that we re-enable observe mode
+                                // if the transaction does not start for some reason
+                                // after disabling observe mode.
+                                mEnableObserveModeOnFieldOff = true;
                                 Log.d(TAG,
                                         "Polling frame matches exit frame, leaving observe mode "
                                                 + "disabled");
@@ -703,7 +735,7 @@ public class HostEmulationManager {
                         }
                     } else {
                         Pair<Messenger, ComponentName> serviceAndName =
-                                getForegroundServiceAndNameOrDefault();
+                                bindToForegroundServiceOrDefaultForPollingLoop();
                         if (serviceAndName != null) {
                             sendFrameToServiceLocked(serviceAndName.first, serviceAndName.second,
                                 pollingFrame);
@@ -763,7 +795,7 @@ public class HostEmulationManager {
 
             if (mPollingLoopState == PollingLoopState.DELIVERING_TO_PREFERRED) {
                 Pair<Messenger, ComponentName> serviceAndName =
-                        getForegroundServiceAndNameOrDefault();
+                        bindToForegroundServiceOrDefaultForPollingLoop();
                 if (serviceAndName != null) {
                     sendFramesToServiceLocked(serviceAndName.first, serviceAndName.second,
                         mPendingPollingLoopFrames);
@@ -780,6 +812,10 @@ public class HostEmulationManager {
     private void allowOneTransaction() {
         Log.d(TAG, "allowOneTransaction");
         mEnableObserveModeAfterTransaction = true;
+        // This is needed to ensure that we re-enable observe mode
+        // if the transaction does not start for some reason
+        // after disabling observe mode.
+        mEnableObserveModeOnFieldOff = true;
         NfcAdapter adapter = NfcAdapter.getDefaultAdapter(mContext);
         mHandler.post(() -> adapter.setObserveModeEnabled(false));
     }
@@ -790,7 +826,10 @@ public class HostEmulationManager {
      * This assumes the exit frame will be in the next batch of processed polling frames.
      */
     public void onObserveModeDisabledInFirmware(PollingFrame exitFrame) {
-        mFirmwareExitFrame = exitFrame;
+        synchronized(mLock) {
+            mFirmwareExitFrame = exitFrame;
+            clearAutoDisableObserveModeRunnableLocked();
+        }
     }
 
     /**
@@ -848,6 +887,12 @@ public class HostEmulationManager {
                 Trace.beginAsyncSection(EVENT_HCE_ACTIVATED, 0);
             }
             rescheduleInactivityChecks();
+            // Since transaction has started, we should only re-enable observe mode
+            // at end of the transaction (not field off because we might get field off
+            // in the middle of transaction)
+            if (mEnableObserveModeAfterTransaction) {
+                mEnableObserveModeOnFieldOff = false;
+            }
             // Regardless of what happens, if we're having a tap again
             // activity up, close it
             Intent intent = new Intent(TapAgainDialog.ACTION_CLOSE);
@@ -1110,11 +1155,6 @@ public class HostEmulationManager {
                 // Don't bother telling, we're not bound to any service yet
             } else {
                 sendDeactivateToActiveServiceLocked(HostApduService.DEACTIVATION_DESELECTED);
-            }
-            if (mEnableObserveModeAfterTransaction) {
-                Log.i(TAG, "onOffHostAidSelected: OffHost AID selected, "
-                        + "waiting for Field off to reenable observe mode");
-                mEnableObserveModeOnFieldOff = true;
             }
             resetActiveService();
             unbindServiceIfNeededLocked();
@@ -1697,6 +1737,16 @@ public class HostEmulationManager {
 
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
+            NfcAdapter adapter = NfcAdapter.getDefaultAdapter(mContext);
+            if (adapter == null) {
+                Log.e(TAG, "onServiceConnected: "
+                        + "adapter is null, returning");
+                return;
+            }
+            if (adapter.getAdapterState() != NfcAdapter.STATE_ON) {
+                Log.i(TAG, "onServiceConnected: NFC is not enabled, returning");
+                return;
+            }
             synchronized (mLock) {
                 ComponentNameAndUser preferredUserAndService = mAidCache.getPreferredService();
                 ComponentName preferredServiceName =

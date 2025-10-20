@@ -1046,6 +1046,12 @@ void nfaDeviceManagementCallback(uint8_t dmEvent,
           SyncEventGuard guard(sNfaDisableEvent);
           sNfaDisableEvent.notifyOne();
         }
+        {
+          LOG(DEBUG) << StringPrintf("%s: aborting  gSendRawVsCmdEvent",
+                                     __func__);
+          SyncEventGuard guard(gSendRawVsCmdEvent);
+          gSendRawVsCmdEvent.notifyOne();
+        }
         sDiscoveryEnabled = false;
         sPollingEnabled = false;
 
@@ -1478,8 +1484,7 @@ static jboolean nfcManager_setObserveMode(JNIEnv* e, jobject o,
       static_cast<uint8_t>(
           enable != JNI_FALSE
               ? (NCI_ANDROID_PASSIVE_OBSERVE_PARAM_ENABLE_A |
-                           NCI_ANDROID_PASSIVE_OBSERVE_PARAM_ENABLE_B |
-                           NCI_ANDROID_PASSIVE_OBSERVE_PARAM_ENABLE_V)
+                           NCI_ANDROID_PASSIVE_OBSERVE_PARAM_ENABLE_B)
               : NCI_ANDROID_PASSIVE_OBSERVE_PARAM_DISABLE)};
   {
     SyncEventGuard guard(gNfaVsCommand);
@@ -2710,7 +2715,11 @@ static void nfcManager_setDiscoveryTech(JNIEnv* e, jobject o, jint pollTech,
 
   if (nfaStat == NFA_STATUS_OK) {
     // wait for NFA_LISTEN_DISABLED_EVT
-    sNfaEnableDisablePollingEvent.wait();
+    LOG(DEBUG) << StringPrintf("%s: wait for completion", __func__);
+    if (!sNfaEnableDisablePollingEvent.wait(5000)) {
+      LOG(ERROR) << StringPrintf("%s: wait for NFA_LISTEN_DISABLED_EVT timeout",
+                                 __func__);
+    }
   } else {
     LOG(ERROR) << StringPrintf("%s: fail disable polling; error=0x%X", __func__,
                                nfaStat);
@@ -3023,20 +3032,30 @@ void startRfDiscovery(bool isStart) {
 
   LOG(DEBUG) << StringPrintf("%s: is start=%d", __func__, isStart);
   nativeNfcTag_acquireRfInterfaceMutexLock();
-  SyncEventGuard guard(sNfaEnableDisablePollingEvent);
-  status = isStart ? NFA_StartRfDiscovery() : NFA_StopRfDiscovery();
-  if (!sIsRecovering) {
-    if (status == NFA_STATUS_OK) {
-      sNfaEnableDisablePollingEvent
-          .wait();  // wait for NFA_RF_DISCOVERY_xxxx_EVT
-      sRfEnabled = isStart;
-    } else {
+  {
+    SyncEventGuard guard(sNfaEnableDisablePollingEvent);
+    status = isStart ? NFA_StartRfDiscovery() : NFA_StopRfDiscovery();
+    if (!sIsRecovering && status == NFA_STATUS_OK) {
+      LOG(DEBUG) << StringPrintf("%s: Wait for completion timeout", __func__);
+      if (!sNfaEnableDisablePollingEvent.wait(5000)) {
+        LOG(ERROR) << StringPrintf(
+            "%s: Wait for NFA_RF_DISCOVERY_xxxx_EVT timeout. Restart NFC "
+            "service...",
+            __func__);
+        status = NFA_STATUS_TIMEOUT;
+      } else {
+        sRfEnabled = isStart;
+      }
+    } else if (!sIsRecovering) {
       LOG(ERROR) << StringPrintf(
           "%s: Failed to start/stop RF discovery; error=0x%X", __func__,
           status);
     }
   }
   nativeNfcTag_releaseRfInterfaceMutexLock();
+  if (status == NFA_STATUS_TIMEOUT) {
+    nfaDeviceManagementCallback(NFA_DM_NFCC_TIMEOUT_EVT, nullptr);
+  }
 }
 
 /*******************************************************************************
@@ -3174,12 +3193,14 @@ static tNFA_STATUS stopPolling_rfDiscoveryDisabled() {
   SyncEventGuard guard(sNfaEnableDisablePollingEvent);
   LOG(DEBUG) << StringPrintf("%s: disable polling", __func__);
   stat = NFA_DisablePolling();
-  if (stat == NFA_STATUS_OK) {
-    sPollingEnabled = false;
-    sNfaEnableDisablePollingEvent.wait();  // wait for NFA_POLL_DISABLED_EVT
-  } else {
-    LOG(ERROR) << StringPrintf("%s: fail disable polling; error=0x%X", __func__,
-                               stat);
+  if (!sIsRecovering) {
+    if (stat == NFA_STATUS_OK) {
+      sPollingEnabled = false;
+      sNfaEnableDisablePollingEvent.wait();  // wait for NFA_POLL_DISABLED_EVT
+    } else {
+      LOG(ERROR) << StringPrintf("%s: fail disable polling; error=0x%X",
+                                 __func__, stat);
+    }
   }
   nativeNfcTag_releaseRfInterfaceMutexLock();
 

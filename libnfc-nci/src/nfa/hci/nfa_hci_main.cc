@@ -41,6 +41,8 @@ using android::base::StringPrintf;
 *****************************************************************************/
 
 tNFA_HCI_CB nfa_hci_cb;
+/* Mutex to protect nfa_hci_cb.hci_state change */
+pthread_mutex_t nfa_hci_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 #ifndef NFA_HCI_NV_READ_TIMEOUT_VAL
 #define NFA_HCI_NV_READ_TIMEOUT_VAL 1000
@@ -274,12 +276,9 @@ bool nfa_hci_is_valid_cfg(void) {
                                      nfa_hci_cb.cfg.dyn_gates[xx].gate_owner);
         return false;
       }
-      if (!((nfa_hci_cb.cfg.dyn_gates[xx].gate_id ==
-             NFA_HCI_CONNECTIVITY_GATE) ||
-            ((nfa_hci_cb.cfg.dyn_gates[xx].gate_id >=
-              NFA_HCI_PROP_GATE_FIRST) ||
-             (nfa_hci_cb.cfg.dyn_gates[xx].gate_id <=
-              NFA_HCI_PROP_GATE_LAST)))) {
+      if ((nfa_hci_cb.cfg.dyn_gates[xx].gate_id != NFA_HCI_CONNECTIVITY_GATE) &&
+          ((nfa_hci_cb.cfg.dyn_gates[xx].gate_id < NFA_HCI_PROP_GATE_FIRST) ||
+           (nfa_hci_cb.cfg.dyn_gates[xx].gate_id > NFA_HCI_PROP_GATE_LAST))) {
         /* The gate owner should be one of the registered application */
         for (zz = 0; zz < app_count; zz++) {
           if (nfa_hci_cb.cfg.dyn_gates[xx].gate_owner == reg_app[zz]) break;
@@ -518,11 +517,13 @@ void nfa_hci_startup_complete(tNFA_STATUS status) {
     nfa_sys_cback_notify_enable_complete(NFA_ID_HCI);
   }
 
+  pthread_mutex_lock(&nfa_hci_mutex);
   if (status == NFA_STATUS_OK)
     nfa_hci_cb.hci_state = NFA_HCI_STATE_IDLE;
 
   else
     nfa_hci_cb.hci_state = NFA_HCI_STATE_DISABLED;
+  pthread_mutex_unlock(&nfa_hci_mutex);
 }
 
 /*******************************************************************************
