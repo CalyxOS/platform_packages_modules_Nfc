@@ -83,6 +83,7 @@ import android.nfc.NfcAdapter;
 import android.nfc.NfcAntennaInfo;
 import android.nfc.NfcOemExtension;
 import android.nfc.OemLogItems;
+import android.nfc.RfDiscoverConfig;
 import android.nfc.T4tNdefNfcee;
 import android.nfc.T4tNdefNfceeCcFileInfo;
 import android.nfc.Tag;
@@ -495,6 +496,7 @@ public class NfcService implements DeviceHostListener, ForegroundUtils.Callback 
     NfcAdapterService mNfcAdapter;
     NfcDtaService mNfcDtaService;
     RoutingTableParser mRoutingTableParser;
+    RfDiscoverCmdParser mRfDiscoverCmdParser;
     boolean mIsDebugBuild;
     boolean mIsHceCapable;
     boolean mIsHceFCapable;
@@ -1210,6 +1212,7 @@ public class NfcService implements DeviceHostListener, ForegroundUtils.Callback 
         mNfcTagService = new TagService();
         mNfcAdapter = new NfcAdapterService();
         mRoutingTableParser = mNfcInjector.getRoutingTableParser();
+        mRfDiscoverCmdParser = mNfcInjector.getRfDiscoverCmdParser();
         mT4tNdefNfceeService = new T4tNdefNfceeService();
         Log.i(TAG, "Starting NFC service");
 
@@ -3813,6 +3816,13 @@ public class NfcService implements DeviceHostListener, ForegroundUtils.Callback 
             if (DBG) Log.i(TAG, "getRoutingTableEntry");
             NfcPermissions.enforceAdminPermissions(mContext);
             return mRoutingTableParser.getRoutingTableEntryList(mDeviceHost);
+        }
+
+        @Override
+        public List<RfDiscoverConfig> getRfDiscoverConfigurations() throws RemoteException {
+            if (DBG) Log.i(TAG, "getRfDiscoverConfigurations");
+            NfcPermissions.enforceAdminPermissions(mContext);
+            return mRfDiscoverCmdParser.getRfDiscoverConfigurations(mDeviceHost);
         }
 
         @Override
@@ -6667,7 +6677,9 @@ public class NfcService implements DeviceHostListener, ForegroundUtils.Callback 
         mNfcDispatcher.dump(fd, pw, args);
         if (mState.get() == NfcAdapter.STATE_ON) {
             mRoutingTableParser.dump(mDeviceHost, pw);
+            mRfDiscoverCmdParser.dump(mDeviceHost, pw);
         }
+
         dumpTagAppPreference(pw);
         mNfcInjector.getNfcEventLog().dump(fd, pw, args);
         copyNativeCrashLogsIfAny(pw);
