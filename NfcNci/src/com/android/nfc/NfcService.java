@@ -934,6 +934,9 @@ public class NfcService implements DeviceHostListener, ForegroundUtils.Callback 
         } catch (RemoteException e) {
             Log.e(TAG, "onRfDiscoveryEvent: e=", e);
         }
+        if (!isDiscoveryStarted) {
+            StopPresenceChecking(false);
+        }
     }
 
     @Override
@@ -1030,6 +1033,9 @@ public class NfcService implements DeviceHostListener, ForegroundUtils.Callback 
     public void onTagRfDiscovered(boolean discovered) {
         Log.d(TAG, "onTagRfDiscovered: " + discovered);
         executeOemOnTagConnectedCallback(discovered);
+        if(!discovered){
+            StopPresenceChecking(false);
+        }
     }
 
     final class ReaderModeParams {
