@@ -660,7 +660,7 @@ public final class NfcAdapter {
          * Called when the previously discovered tag is lost.
          */
         @FlaggedApi(com.android.nfc.module.flags.Flags.FLAG_TAP_TO_X)
-        default void onTagLost(@NonNull Tag tag) {
+        default void onTagLost() {
             // Do nothing by default.
             // Apps can optionally override this.
         }
