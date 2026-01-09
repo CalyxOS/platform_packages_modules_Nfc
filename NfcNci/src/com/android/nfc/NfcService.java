@@ -1584,6 +1584,9 @@ public class NfcService implements DeviceHostListener, ForegroundUtils.Callback 
                     .getPackageManager().getPackageInfo(pkgName, PackageManager.MATCH_ALL);
         } catch (PackageManager.NameNotFoundException e) {
             return false;
+        } catch (IllegalStateException e) {
+            Log.e(TAG, "Fail to create context for user " + userId + ": " + e);
+            return false;
         }
         return info != null;
     }
