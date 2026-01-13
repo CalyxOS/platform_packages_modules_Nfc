@@ -431,6 +431,7 @@ public class NfcService implements DeviceHostListener, ForegroundUtils.Callback 
 
     // fields below are used in multiple threads and protected by synchronized(this)
     final HashMap<Integer, Object> mObjectMap = new HashMap<Integer, Object>();
+    final HashMap<Integer, Object> mTagObjectMap = new HashMap<Integer, Object>();
     int mScreenState;
     boolean mInProvisionMode; // whether we're in setup wizard and enabled NFC provisioning
     boolean mIsSecureNfcEnabled;
@@ -597,6 +598,7 @@ public class NfcService implements DeviceHostListener, ForegroundUtils.Callback 
     };
 
     private Object mDiscoveryLock = new Object();
+    private final Object mObjectMapLock = new Object();
 
     private boolean mCardEmulationActivated = false;
     private boolean mRfFieldActivated = false;
@@ -2013,8 +2015,11 @@ public class NfcService implements DeviceHostListener, ForegroundUtils.Callback 
             synchronized (mPowerSavingModeLock) {
                 mPowerSavingState = NfcAdapter.STATE_OFF;
             }
-            synchronized (NfcService.this) {
+            synchronized (mObjectMapLock) {
                 mObjectMap.clear();
+                mTagObjectMap.clear();
+            }
+            synchronized (NfcService.this) {
                 updateState(NfcAdapter.STATE_ON);
 
                 onPreferredPaymentChanged(NfcAdapter.PREFERRED_PAYMENT_LOADED);
@@ -5085,7 +5090,7 @@ public class NfcService implements DeviceHostListener, ForegroundUtils.Callback 
 
     private boolean isPresenceCheckStopped() {
         boolean isStopped = false;
-        synchronized (this) {
+        synchronized (mObjectMapLock) {
             Object[] objectValues = mObjectMap.values().toArray();
             for (Object object : objectValues) {
                 if (object instanceof TagEndpoint) {
@@ -5103,7 +5108,7 @@ public class NfcService implements DeviceHostListener, ForegroundUtils.Callback 
      * Disconnect API and onTagDisconnect callback
      */
     private void prepareForRemovalDetectionMode() {
-        synchronized (this) {
+        synchronized (mObjectMapLock) {
             Object[] objectValues = mObjectMap.values().toArray();
             for (Object object : objectValues) {
                 if (object instanceof TagEndpoint) {
@@ -5138,12 +5143,13 @@ public class NfcService implements DeviceHostListener, ForegroundUtils.Callback 
         }
         clearAppInactivityDetectionContext();
         Object[] objectsToDisconnect;
-        synchronized (this) {
+        synchronized (mObjectMapLock) {
             Object[] objectValues = mObjectMap.values().toArray();
             // Copy the array before we clear mObjectMap,
             // just in case the HashMap values are backed by the same array
             objectsToDisconnect = Arrays.copyOf(objectValues, objectValues.length);
             mObjectMap.clear();
+            mTagObjectMap.clear();
         }
         for (Object o : objectsToDisconnect) {
             if (DBG) Log.d(TAG, "maybeDisconnectTarget: " + o.getClass().getName());
@@ -5156,7 +5162,7 @@ public class NfcService implements DeviceHostListener, ForegroundUtils.Callback 
     }
 
     Object findObject(int key) {
-        synchronized (this) {
+        synchronized (mObjectMapLock) {
             Object device = mObjectMap.get(key);
             if (device == null) {
                 Log.w(TAG, "maybeDisconnectTarget: Handle not found");
@@ -5166,26 +5172,40 @@ public class NfcService implements DeviceHostListener, ForegroundUtils.Callback 
     }
 
     Object findAndRemoveObject(int handle) {
-        synchronized (this) {
+        synchronized (mObjectMapLock) {
             Object device = mObjectMap.get(handle);
             if (device == null) {
                 Log.w(TAG, "findAndRemoveObject: Handle not found");
             } else {
                 mObjectMap.remove(handle);
+                mTagObjectMap.remove(handle);
             }
             return device;
         }
     }
 
     void registerTagObject(TagEndpoint tag) {
-        synchronized (this) {
+        synchronized (mObjectMapLock) {
             mObjectMap.put(tag.getHandle(), tag);
+
         }
     }
 
     void unregisterObject(int handle) {
-        synchronized (this) {
+        synchronized (mObjectMapLock) {
             mObjectMap.remove(handle);
+        }
+    }
+
+    void registerTag(Tag tag) {
+        synchronized (mObjectMapLock) {
+            mTagObjectMap.put(tag.getServiceHandle(), tag);
+        }
+    }
+
+    void unregisterTag(int handle) {
+        synchronized (mObjectMapLock) {
+            mTagObjectMap.remove(handle);
         }
     }
 
@@ -6168,6 +6188,7 @@ public class NfcService implements DeviceHostListener, ForegroundUtils.Callback 
                         tagEndpoint.getTechExtras(), tagEndpoint.getHandle(),
                         mCookieUpToDate, mNfcTagService);
                 registerTagObject(tagEndpoint);
+                registerTag(tag);
                 if (readerParams != null) {
                     try {
                         if ((readerParams.flags & NfcAdapter.FLAG_READER_NO_PLATFORM_SOUNDS) == 0) {
@@ -6204,6 +6225,7 @@ public class NfcService implements DeviceHostListener, ForegroundUtils.Callback 
                     executeOemOnTagConnectedCallback(false);
                     executeReaderModeOnTagLostCallback();
                     unregisterObject(tagEndpoint.getHandle());
+                    unregisterTag(tag.getServiceHandle());
                     if (mPollDelayTime > NO_POLL_DELAY) {
                         pollingDelay();
                         tagEndpoint.stopPresenceChecking(false);
@@ -6271,7 +6293,17 @@ public class NfcService implements DeviceHostListener, ForegroundUtils.Callback 
     private void executeReaderModeOnTagLostCallback() {
         if (mReaderModeParams != null && mReaderModeParams.callback != null) {
             try {
-                mReaderModeParams.callback.onTagLost();
+                Object[] objectValues;
+                synchronized (mObjectMapLock) {
+                    objectValues = mTagObjectMap.values().toArray();
+                    mTagObjectMap.clear();
+                }
+
+                for (Object o : objectValues) {
+                    if (o instanceof Tag) {
+                        mReaderModeParams.callback.onTagLost((Tag) o);
+                    }
+                }
             } catch (RemoteException e) {
                 Log.e(TAG, e.toString());
             }
