@@ -1137,7 +1137,8 @@ static jboolean nfcManager_sendRawFrame(JNIEnv* e, jobject, jbyteArray data) {
 *******************************************************************************/
 static jboolean nfcManager_routeAid(JNIEnv* e, jobject, jbyteArray aid,
                                     jint route, jint aidInfo, jint power) {
-  if (sIsShuttingDown) return false;
+  if (sIsShuttingDown || sIsRecovering || sIsDisabling || !sIsNfaEnabled)
+    return false;
   uint8_t* buf;
   size_t bufLen;
   if (sIsDisabling || !sIsNfaEnabled) {
@@ -1175,7 +1176,8 @@ static jboolean nfcManager_routeAid(JNIEnv* e, jobject, jbyteArray aid,
 **
 *******************************************************************************/
 static jboolean nfcManager_unrouteAid(JNIEnv* e, jobject, jbyteArray aid) {
-  if (sIsShuttingDown) return false;
+  if (sIsShuttingDown || sIsRecovering || sIsDisabling || !sIsNfaEnabled)
+    return false;
   uint8_t* buf;
   size_t bufLen;
   if (sIsDisabling || !sIsNfaEnabled) {
@@ -1207,8 +1209,8 @@ static jboolean nfcManager_unrouteAid(JNIEnv* e, jobject, jbyteArray aid) {
 **
 *******************************************************************************/
 static jint nfcManager_commitRouting(JNIEnv* e, jobject) {
-  if (sIsShuttingDown) return -1;
-  if (sIsRecovering) return -1;
+  if (sIsShuttingDown || sIsRecovering || sIsDisabling || !sIsNfaEnabled)
+    return -1;
   if (sRfEnabled) {
     /*Update routing table only in Idle state.*/
     startRfDiscovery(false);
@@ -1417,8 +1419,11 @@ static jboolean isObserveModeSupported(JNIEnv* e, jobject o) {
 }
 
 static jboolean nfcManager_isObserveModeEnabled(JNIEnv* e, jobject o) {
-  if (sIsShuttingDown) return false;
+  if (sIsShuttingDown || sIsRecovering || sIsDisabling || !sIsNfaEnabled)
+    return false;
   if (isObserveModeSupported(e, o) == JNI_FALSE) {
+    LOG(DEBUG) << StringPrintf(
+        "%s: Observe mode not supported, returning false", __func__);
     return false;
   }
 
@@ -1463,7 +1468,8 @@ bool isObserveModeSupportedWithoutRfDeactivation(JNIEnv* e, jobject o) {
 
 static jboolean nfcManager_setObserveMode(JNIEnv* e, jobject o,
                                           jboolean enable) {
-  if (sIsShuttingDown || !sIsNfaEnabled) return false;
+  if (sIsShuttingDown || sIsRecovering || sIsDisabling || !sIsNfaEnabled)
+    return false;
   if (isObserveModeSupported(e, o) == JNI_FALSE) {
     LOG(DEBUG) << "setObserveMode called when it isn't supported, returning false";
     return false;
@@ -1542,7 +1548,8 @@ static jboolean nfcManager_setObserveMode(JNIEnv* e, jobject o,
 *******************************************************************************/
 static jint nfcManager_doRegisterT3tIdentifier(JNIEnv* e, jobject,
                                                jbyteArray t3tIdentifier) {
-  if (sIsShuttingDown) return -1;
+  if (sIsShuttingDown || sIsRecovering || sIsDisabling || !sIsNfaEnabled)
+    return -1;
   LOG(DEBUG) << StringPrintf("%s: enter", __func__);
 
   ScopedByteArrayRO bytes(e, t3tIdentifier);
@@ -1569,7 +1576,8 @@ static jint nfcManager_doRegisterT3tIdentifier(JNIEnv* e, jobject,
 *******************************************************************************/
 static void nfcManager_doDeregisterT3tIdentifier(JNIEnv*, jobject,
                                                  jint handle) {
-  if (sIsShuttingDown) return;
+  if (sIsShuttingDown || sIsRecovering || sIsDisabling || !sIsNfaEnabled)
+    return;
   LOG(DEBUG) << StringPrintf("%s: enter; handle=%d", __func__, handle);
 
   RoutingManager::getInstance().deregisterT3tIdentifier(handle);
@@ -2341,7 +2349,8 @@ static jint nfcManager_doGetNciVersion(JNIEnv*, jobject) {
 static void nfcManager_doSetScreenState(JNIEnv* e, jobject o,
                                         jint screen_state_mask,
                                         jboolean alwaysPoll) {
-  if (sIsShuttingDown) return;
+  if (sIsShuttingDown || sIsRecovering || sIsDisabling || !sIsNfaEnabled)
+    return;
   tNFA_STATUS status = NFA_STATUS_OK;
   uint8_t prevScreenState = sPrevScreenStateMask & NFA_SCREEN_STATE_MASK;
   uint8_t state = (screen_state_mask & NFA_SCREEN_STATE_MASK);
@@ -2547,8 +2556,8 @@ static bool nfcManager_isMultiTag() {
 *******************************************************************************/
 static void nfcManager_doStartStopPolling(JNIEnv* e, jobject o,
                                           jboolean start) {
-  if (sIsShuttingDown) return;
-  if (sIsRecovering) return;
+  if (sIsShuttingDown || sIsRecovering || sIsDisabling || !sIsNfaEnabled)
+    return;
   startStopPolling(start);
 }
 
@@ -2579,7 +2588,8 @@ static jboolean nfcManager_doSetNfcSecure(JNIEnv* e, jobject o,
 
 static void nfcManager_doSetNfceePowerAndLinkCtrl(JNIEnv* e, jobject o,
                                                   jboolean enable) {
-  if (sIsShuttingDown) return;
+  if (sIsShuttingDown || sIsRecovering || sIsDisabling || !sIsNfaEnabled)
+    return;
   RoutingManager& routingManager = RoutingManager::getInstance();
   if (enable) {
     routingManager.eeSetPwrAndLinkCtrl(
@@ -2651,7 +2661,8 @@ static void nfcManager_clearRoutingEntry(JNIEnv* e, jobject o,
 *******************************************************************************/
 static jboolean nfcManager_doDetectEpRemoval(JNIEnv* e, jobject o,
                                              jint waiting_time_int) {
-  if (sIsShuttingDown) return false;
+  if (sIsShuttingDown || sIsRecovering || sIsDisabling || !sIsNfaEnabled)
+    return false;
   tNFA_STATUS stat = NFA_STATUS_FAILED;
 
   LOG(DEBUG) << StringPrintf("%s: enter waiting_time = %04X", __func__,
@@ -2726,7 +2737,8 @@ static void nfcManager_updateSystemCodeRoute(JNIEnv* e, jobject o,
 *******************************************************************************/
 static void nfcManager_setDiscoveryTech(JNIEnv* e, jobject o, jint pollTech,
                                         jint listenTech) {
-  if (sIsShuttingDown) return;
+  if (sIsShuttingDown || sIsRecovering || sIsDisabling || !sIsNfaEnabled)
+    return;
   tNFA_STATUS nfaStat;
   bool isRevertPoll = false;
   bool isRevertListen = false;
@@ -2774,7 +2786,8 @@ static void nfcManager_setDiscoveryTech(JNIEnv* e, jobject o, jint pollTech,
 **
 *******************************************************************************/
 static void nfcManager_resetDiscoveryTech(JNIEnv* e, jobject o) {
-  if (sIsShuttingDown) return;
+  if (sIsShuttingDown || sIsRecovering || sIsDisabling || !sIsNfaEnabled)
+    return;
   tNFA_STATUS nfaStat;
   LOG(DEBUG) << StringPrintf("%s : enter", __func__);
 
@@ -2800,20 +2813,23 @@ static void nfcManager_resetDiscoveryTech(JNIEnv* e, jobject o) {
 static void ncfManager_nativeEnableVendorNciNotifications(JNIEnv* env,
                                                           jobject o,
                                                           jboolean enable) {
-  if (sIsShuttingDown) return;
+  if (sIsShuttingDown || sIsRecovering || sIsDisabling || !sIsNfaEnabled)
+    return;
   sEnableVendorNciNotifications = (enable == JNI_TRUE);
 }
 
 static jobject nfcManager_dofetchActiveNfceeList(JNIEnv* e, jobject o) {
   (void)o;
-  if (sIsShuttingDown) return nullptr;
+  if (sIsShuttingDown || sIsRecovering || sIsDisabling || !sIsNfaEnabled)
+    return nullptr;
   return NfceeManager::getInstance().getActiveNfceeList(e);
 }
 
 static jobject nfcManager_nativeSendRawVendorCmd(JNIEnv* env, jobject o,
                                                  jint mt, jint gid, jint oid,
                                                  jbyteArray payload) {
-  if (sIsShuttingDown) return nullptr;
+  if (sIsShuttingDown || sIsRecovering || sIsDisabling || !sIsNfaEnabled)
+    return nullptr;
   LOG(DEBUG) << StringPrintf("%s : enter", __func__);
   ScopedByteArrayRO payloaBytes(env, payload);
   ScopedLocalRef<jclass> cls(env,
@@ -3270,7 +3286,8 @@ static tNFA_STATUS stopPolling_rfDiscoveryDisabled() {
 
 static jboolean nfcManager_doSetPowerSavingMode(JNIEnv* e, jobject o,
                                                 bool flag) {
-  if (sIsShuttingDown) return false;
+  if (sIsShuttingDown || sIsRecovering || sIsDisabling || !sIsNfaEnabled)
+    return false;
   LOG(DEBUG) << StringPrintf("%s: enter; ", __func__);
   uint8_t cmd[] = {(NCI_MT_CMD << NCI_MT_SHIFT) | NCI_GID_PROP,
                    NCI_MSG_PROP_ANDROID, NCI_ANDROID_POWER_SAVING_PARAM_SIZE,
@@ -3292,7 +3309,8 @@ static jboolean nfcManager_doSetPowerSavingMode(JNIEnv* e, jobject o,
 }
 
 static jbyteArray nfcManager_getProprietaryCaps(JNIEnv* e, jobject o) {
-  if (sIsShuttingDown) return nullptr;
+  if (sIsShuttingDown || sIsRecovering || sIsDisabling || !sIsNfaEnabled)
+    return nullptr;
   LOG(DEBUG) << StringPrintf("%s: enter; ", __func__);
   uint8_t cmd[] = {(NCI_MT_CMD << NCI_MT_SHIFT) | NCI_GID_PROP,
                    NCI_MSG_PROP_ANDROID, NCI_ANDROID_GET_CAPS_PARAM_SIZE,
@@ -3321,7 +3339,8 @@ static jbyteArray nfcManager_getProprietaryCaps(JNIEnv* e, jobject o) {
 static jboolean nfcManager_setFirmwareExitFrameTable(JNIEnv* env, jobject o,
                                                      jobjectArray exit_frames,
                                                      jbyteArray timeout) {
-  if (sIsShuttingDown) return false;
+  if (sIsShuttingDown || sIsRecovering || sIsDisabling || !sIsNfaEnabled)
+    return false;
   LOG(DEBUG) << __func__ << ": Setting firmware exit frame table";
   std::vector<uint8_t> command;
   command.push_back(NCI_ANDROID_SET_PASSIVE_OBSERVER_EXIT_FRAME);
@@ -3441,7 +3460,8 @@ static jboolean nfcManager_setFirmwareExitFrameTable(JNIEnv* env, jobject o,
 **
 *******************************************************************************/
 static void nfcManager_restartRfDiscovery(JNIEnv*, jobject) {
-  if (sIsShuttingDown) return;
+  if (sIsShuttingDown || sIsRecovering || sIsDisabling || !sIsNfaEnabled)
+    return;
   if (sRfEnabled) {
     android::startRfDiscovery(false);
   }
