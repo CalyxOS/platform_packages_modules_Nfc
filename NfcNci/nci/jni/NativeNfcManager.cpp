@@ -548,8 +548,10 @@ static void nfaConnectionCallback(uint8_t connEvent,
     } break;
     case NFA_DEACTIVATED_EVT:  // NFC link/protocol deactivated
       LOG(DEBUG) << StringPrintf(
-          "%s: NFA_DEACTIVATED_EVT   Type=%u, gIsTagDeactivating=%d", __func__,
-          eventData->deactivated.type, gIsTagDeactivating);
+          "%s: NFA_DEACTIVATED_EVT   Type=%u, gIsTagDeactivating=%d, "
+          "gIsSelectingRfInterface=%d",
+          __func__, eventData->deactivated.type, gIsTagDeactivating,
+          gIsSelectingRfInterface);
       NfcTag::getInstance().setDeactivationState(eventData->deactivated);
 
       if (eventData->deactivated.type != NFA_DEACTIVATE_TYPE_SLEEP) {
@@ -1281,29 +1283,31 @@ void static nfaVSCallback(uint8_t event, uint16_t param_len, uint8_t* p_param) {
                             (jint)param_len, dataJavaArray.get());
         } break;
         case NCI_ANDROID_PASSIVE_OBSERVER_SUSPENDED_NTF: {
-          LOG(INFO) << "Observe mode suspended NTF received";
+          LOG(INFO) << StringPrintf("%s: Observe mode suspended NTF received", __func__);
           gObserveModeEnabled = false;
           struct nfc_jni_native_data* nat = getNative(NULL, NULL);
           if (!nat) {
-              LOG(ERROR) << StringPrintf("cached nat is null");
+              LOG(ERROR) << StringPrintf("%s: cached nat is null", __func__);
               return;
           }
           JNIEnv* e = NULL;
           ScopedAttach attach(nat->vm, &e);
           if (e == NULL) {
-              LOG(ERROR) << StringPrintf("jni env is null");
+              LOG(ERROR) << StringPrintf("%s: jni env is null", __func__);
               return;
           }
           if (param_len <= 2) {
-              LOG(ERROR) <<
-                    "Cannot parse exit frame from NCI_ANDROID_PASSIVE_OBSERVER_SUSPENDED_NTF";
+            LOG(ERROR) << StringPrintf(
+                "%s: Cannot parse exit frame from "
+                "NCI_ANDROID_PASSIVE_OBSERVER_SUSPENDED_NTF",
+                __func__);
               return;
           }
           jint exit_frame_type = (jint) p_param[4];
           uint16_t exit_frame_len = p_param[5];
           ScopedLocalRef<jobject> dataJavaArray(e, e->NewByteArray(exit_frame_len));
           if (dataJavaArray.get() == NULL) {
-              LOG(ERROR) << "fail allocate array";
+              LOG(ERROR) << StringPrintf("%s: fail allocate array", __func__);
               return;
           }
           if (exit_frame_len > 0) {
@@ -1311,7 +1315,8 @@ void static nfaVSCallback(uint8_t event, uint16_t param_len, uint8_t* p_param) {
                                     (jbyte*)(p_param + 6));
               if (e->ExceptionCheck()) {
                   e->ExceptionClear();
-                  LOG(ERROR) << "failed to fill array";
+                  LOG(ERROR) << StringPrintf(
+                      "%s: failed to fill array", __func__);
                   return;
               }
           }
@@ -1321,17 +1326,17 @@ void static nfaVSCallback(uint8_t event, uint16_t param_len, uint8_t* p_param) {
           return;
         } break;
         case NCI_ANDROID_PASSIVE_OBSERVER_RESUMED_NTF: {
-          LOG(INFO) << "Observe mode resumed NTF received";
+          LOG(INFO) << StringPrintf("%s: Observe mode resumed NTF received", __func__);
           gObserveModeEnabled = true;
           struct nfc_jni_native_data *nat = getNative(NULL, NULL);
           if (!nat) {
-              LOG(ERROR) << StringPrintf("cached nat is null");
+              LOG(ERROR) << StringPrintf("%s: cached nat is null", __func__);
               return;
           }
           JNIEnv *e = NULL;
           ScopedAttach attach(nat->vm, &e);
           if (e == NULL) {
-              LOG(ERROR) << StringPrintf("jni env is null");
+            LOG(ERROR) << StringPrintf("%s: jni env is null", __func__);
               return;
           }
           e->CallVoidMethod(nat->manager,
@@ -1471,12 +1476,14 @@ static jboolean nfcManager_setObserveMode(JNIEnv* e, jobject o,
   if (sIsShuttingDown || sIsRecovering || sIsDisabling || !sIsNfaEnabled)
     return false;
   if (isObserveModeSupported(e, o) == JNI_FALSE) {
-    LOG(DEBUG) << "setObserveMode called when it isn't supported, returning false";
+    LOG(DEBUG) << StringPrintf(
+        "%s: Observe mode not supported, returning false", __func__);
     return false;
   }
 
   if (isObserveModeSupportedWithoutRfDeactivation(e, o) == JNI_FALSE) {
-    LOG(DEBUG) << "setObserveMode called when it requires RF off/on, returning false";
+    LOG(DEBUG) << StringPrintf(
+        "%s: Observe mode requires RF off/on, returning false", __func__);
     return false;
   }
 
