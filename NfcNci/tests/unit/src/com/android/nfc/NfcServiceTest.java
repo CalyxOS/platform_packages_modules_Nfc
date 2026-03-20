@@ -424,6 +424,7 @@ public final class NfcServiceTest {
 
         // onRfDiscoveryEvent(false) calls StopPresenceChecking
         mDeviceHostListener.getValue().onRfDiscoveryEvent(false);
+        mLooper.dispatchAll();
 
         // Verify that onTagLost was called on the reader mode callback
         verify(readerParams.callback).onTagLost(mockTag);
@@ -2916,6 +2917,7 @@ public final class NfcServiceTest {
 
         // Act
         listener.onRfDiscoveryEvent(false);
+        mLooper.dispatchAll();
 
         // Assert
         verify(mockTagEndpoint).stopPresenceChecking(false);
@@ -2942,6 +2944,7 @@ public final class NfcServiceTest {
 
         // Act
         listener.onTagRfDiscovered(false);
+        mLooper.dispatchAll();
 
         // Assert
         verify(mockTagEndpoint).stopPresenceChecking(false);
