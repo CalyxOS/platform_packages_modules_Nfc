@@ -1532,7 +1532,7 @@ void nfc_ncif_proc_reset_rsp(uint8_t* p, bool is_ntf) {
 
   status = *p_len > 0 ? *p++ : NCI_STATUS_FAILED;
   if (*p_len > 2 && is_ntf) {
-    LOG(WARNING) << StringPrintf("%s: reset notification!!=0x%x ", __func__,
+    LOG(WARNING) << StringPrintf("%s: reset notification!!=0x%x", __func__,
                                  status);
     /* clean up, if the state is OPEN
      * FW does not report reset ntf right now */

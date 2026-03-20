@@ -698,7 +698,7 @@ public class HostEmulationManager {
                     String dataStr = HexFormat.of().formatHex(data).toUpperCase(Locale.ROOT);
                     if (DBG) {
                         Log.d(TAG, "onPollingLoopDetected: "
-                                + " POLLING_LOOP_TYPE_UNKNOWN(" + dataStr + ")");
+                                + "POLLING_LOOP_TYPE_UNKNOWN(" + dataStr + ")");
                     }
                     Map<String, List<ApduServiceInfo>> MappingForUser =
                             mPollingLoopFilters.get(ActivityManager.getCurrentUser());
