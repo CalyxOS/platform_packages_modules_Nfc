@@ -260,15 +260,11 @@ public class NativeNfcTag implements TagEndpoint {
     }
 
     @Override
-    public void stopPresenceChecking(boolean isShutdown) {
-        PresenceCheckWatchdog watchdog;
-        synchronized (this) {
-            mIsShutdown = isShutdown;
-            mIsPresent = false;
-            watchdog = mWatchdog;
-        }
-        if (watchdog != null) {
-            watchdog.end(true);
+    public synchronized void stopPresenceChecking(boolean isShutdown) {
+        mIsShutdown = isShutdown;
+        mIsPresent = false;
+        if (mWatchdog != null) {
+            mWatchdog.end(true);
         }
     }
 
