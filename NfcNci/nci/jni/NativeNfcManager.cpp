@@ -1283,40 +1283,41 @@ void static nfaVSCallback(uint8_t event, uint16_t param_len, uint8_t* p_param) {
                             (jint)param_len, dataJavaArray.get());
         } break;
         case NCI_ANDROID_PASSIVE_OBSERVER_SUSPENDED_NTF: {
-          LOG(INFO) << StringPrintf("%s: Observe mode suspended NTF received", __func__);
+          LOG(INFO) << StringPrintf("%s: Observe mode suspended NTF received",
+                                    __func__);
           gObserveModeEnabled = false;
           struct nfc_jni_native_data* nat = getNative(NULL, NULL);
           if (!nat) {
-              LOG(ERROR) << StringPrintf("%s: cached nat is null", __func__);
-              return;
+            LOG(ERROR) << StringPrintf("%s: cached nat is null", __func__);
+            return;
           }
           JNIEnv* e = NULL;
           ScopedAttach attach(nat->vm, &e);
           if (e == NULL) {
-              LOG(ERROR) << StringPrintf("%s: jni env is null", __func__);
-              return;
+            LOG(ERROR) << StringPrintf("%s: jni env is null", __func__);
+            return;
           }
           if (param_len <= 2) {
             LOG(ERROR) << StringPrintf(
                 "%s: Cannot parse exit frame from "
                 "NCI_ANDROID_PASSIVE_OBSERVER_SUSPENDED_NTF",
                 __func__);
-              return;
+            return;
           }
           jint exit_frame_type = (jint) p_param[4];
           uint16_t exit_frame_len = p_param[5];
           ScopedLocalRef<jobject> dataJavaArray(e, e->NewByteArray(exit_frame_len));
           if (dataJavaArray.get() == NULL) {
-              LOG(ERROR) << StringPrintf("%s: fail allocate array", __func__);
-              return;
+            LOG(ERROR) << StringPrintf("%s: fail allocate array", __func__);
+            return;
           }
           if (exit_frame_len > 0) {
               e->SetByteArrayRegion((jbyteArray)dataJavaArray.get(), 0, exit_frame_len,
                                     (jbyte*)(p_param + 6));
               if (e->ExceptionCheck()) {
                   e->ExceptionClear();
-                  LOG(ERROR) << StringPrintf(
-                      "%s: failed to fill array", __func__);
+                  LOG(ERROR)
+                      << StringPrintf("%s: failed to fill array", __func__);
                   return;
               }
           }
@@ -1326,18 +1327,19 @@ void static nfaVSCallback(uint8_t event, uint16_t param_len, uint8_t* p_param) {
           return;
         } break;
         case NCI_ANDROID_PASSIVE_OBSERVER_RESUMED_NTF: {
-          LOG(INFO) << StringPrintf("%s: Observe mode resumed NTF received", __func__);
+          LOG(INFO) << StringPrintf("%s: Observe mode resumed NTF received",
+                                    __func__);
           gObserveModeEnabled = true;
           struct nfc_jni_native_data *nat = getNative(NULL, NULL);
           if (!nat) {
-              LOG(ERROR) << StringPrintf("%s: cached nat is null", __func__);
-              return;
+            LOG(ERROR) << StringPrintf("%s: cached nat is null", __func__);
+            return;
           }
           JNIEnv *e = NULL;
           ScopedAttach attach(nat->vm, &e);
           if (e == NULL) {
             LOG(ERROR) << StringPrintf("%s: jni env is null", __func__);
-              return;
+            return;
           }
           e->CallVoidMethod(nat->manager,
                             android::gCachedNfcManagerOnObserveModeEnabledInFirmware);

@@ -1517,8 +1517,8 @@ public class RegisteredAidCache {
                 // Associated wallet role package may not have any CE service (only for ability to
                 // toggle observe mode), so add these packages directly here.
                 if (shareRolePriorityPackageName != null) {
-                    Log.v(TAG, "generateAssociatedRoleServicesLocked: "
-                            + "Found associated role package: "
+                    Log.v(TAG,
+                            "generateAssociatedRoleServicesLocked: Found associated role package: "
                             + shareRolePriorityPackageName);
                     mAssociatedRolePackageNames.add(shareRolePriorityPackageName);
                 }
