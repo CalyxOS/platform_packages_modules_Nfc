@@ -424,6 +424,7 @@ public final class NfcServiceTest {
 
         // onRfDiscoveryEvent(false) calls StopPresenceChecking
         mDeviceHostListener.getValue().onRfDiscoveryEvent(false);
+        mLooper.dispatchAll();
 
         // Verify that onTagLost was called on the reader mode callback
         verify(readerParams.callback).onTagLost(mockTag);
@@ -2466,6 +2467,30 @@ public final class NfcServiceTest {
     }
 
     @Test
+    public void testIsNfcSecureEnabled_UserChanged() throws RemoteException {
+        NfcService.NfcAdapterService adapterService = mNfcService.new NfcAdapterService();
+        int currentUser = ActivityManager.getCurrentUser();
+
+        // Simulate user switch to change mUserId to a different user
+        BroadcastReceiver receiver = mGlobalReceiver.getValue();
+        Intent intent = new Intent(Intent.ACTION_USER_SWITCHED);
+        intent.putExtra(Intent.EXTRA_USER_HANDLE, currentUser + 1);
+        receiver.onReceive(mApplication, intent);
+
+        mNfcService.mIsSecureNfcCapable = true;
+        when(mDeviceConfigFacade.getDefaultSecureNfcState()).thenReturn(false);
+        when(mPreferences.getBoolean(eq("secure_nfc_on_" + currentUser), anyBoolean()))
+                .thenReturn(true);
+        clearInvocations(mPreferences, mDeviceHost);
+
+        boolean result = adapterService.isNfcSecureEnabled();
+
+        assertThat(result).isTrue();
+        verify(mPreferences).getBoolean(eq("secure_nfc_on_" + currentUser), anyBoolean());
+        verify(mDeviceHost).setNfcSecure(true);
+    }
+
+    @Test
     public void testIsReaderOptionSupported() {
         NfcService.NfcAdapterService adapterService = mNfcService.new NfcAdapterService();
         mNfcService.mReaderOptionCapable = true;
@@ -2916,6 +2941,7 @@ public final class NfcServiceTest {
 
         // Act
         listener.onRfDiscoveryEvent(false);
+        mLooper.dispatchAll();
 
         // Assert
         verify(mockTagEndpoint).stopPresenceChecking(false);
@@ -2942,6 +2968,7 @@ public final class NfcServiceTest {
 
         // Act
         listener.onTagRfDiscovered(false);
+        mLooper.dispatchAll();
 
         // Assert
         verify(mockTagEndpoint).stopPresenceChecking(false);
