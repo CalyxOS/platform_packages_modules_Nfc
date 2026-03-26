@@ -199,6 +199,7 @@ tNFA_STATUS gVSCmdStatus = NFA_STATUS_OK;
 uint16_t gCurrentConfigLen;
 uint8_t gConfig[256];
 std::vector<uint8_t> gCaps(0);
+std::vector<uint8_t> defaultFrame;
 
 // sPrevScreenStateMask contains screen state + polling enable/disable mask
 //  Possible screen states:
@@ -1696,6 +1697,7 @@ static jboolean nfcManager_doInitialize(JNIEnv* e, jobject o) {
   initializeGlobalDebugEnabledFlag();
   tNFA_STATUS stat = NFA_STATUS_OK;
   sIsRecovering = false;
+  uint8_t mHostListenTechMask;
 
   struct nfc_jni_native_data* nat = getNative(e, o);
 
@@ -1763,6 +1765,9 @@ static jboolean nfcManager_doInitialize(JNIEnv* e, jobject o) {
         }
 
         // get LF_T3T_MAX
+        mHostListenTechMask = NfcConfig::getUnsigned(NAME_HOST_LISTEN_TECH_MASK,
+                              NFA_TECHNOLOGY_MASK_A | NFA_TECHNOLOGY_MASK_F);
+        if ((mHostListenTechMask & NFA_TECHNOLOGY_MASK_F) != 0)
         {
           SyncEventGuard guard(gNfaGetConfigEvent);
           tNFA_PMID configParam[1] = {NCI_PARAM_ID_LF_T3T_MAX};
@@ -1965,8 +1970,10 @@ static void nfcManager_enableDiscovery(
               extra_annotationBytes.size());
         }
       } else {
-        uint8_t ignoreFrame[] = {0x6a, 0x01, 0xcf, 0x00, 0x00};
-        setTechAPollingLoopAnnotation(e, 0, ignoreFrame, 5, NULL, 0);
+        LOG(DEBUG) << StringPrintf("%s: applying defaultFrame, size: %zu",
+                                   __func__, defaultFrame.size());
+        setTechAPollingLoopAnnotation(e, o, defaultFrame.data(),
+                                      defaultFrame.size(), NULL, 0);
       }
     }
     startPolling_rfDiscoveryDisabled(tech_mask);
@@ -3000,6 +3007,30 @@ static jbyteArray nfcManager_doGetRfDiscoverConfig(JNIEnv* e, jobject o) {
   return rtJavaArray;
 }
 
+/*******************************************************************************
+**
+** Function:        nfcManager_doSetDefaultFrame
+**
+** Description:     Set default frame content
+**                  e: JVM environment.
+**                  o: Java object.
+**                  frame: default frame content.
+**
+** Returns:         None
+**
+*******************************************************************************/
+static void nfcManager_doSetDefaultFrame(JNIEnv* e, jobject o,
+                                         jbyteArray frame) {
+  LOG(DEBUG) << StringPrintf("%s: enter", __func__);
+  if (frame != NULL) {
+    ScopedByteArrayRO bytes(e, frame);
+    defaultFrame.assign((const uint8_t*)bytes.get(),
+                        (const uint8_t*)bytes.get() + bytes.size());
+  } else {
+    defaultFrame.clear();
+  }
+}
+
 /*****************************************************************************
 **
 ** JNI functions for android-4.0.1_r1
@@ -3110,6 +3141,7 @@ static JNINativeMethod gMethods[] = {
     {"doRestartRfDiscovery", "()V", (void*)nfcManager_restartRfDiscovery},
     {"setNciConfig", "(I[BIZ)V", (void*)nfcManager_setNciConfig},
     {"getRfDiscoverConfig", "()[B", (void*)nfcManager_doGetRfDiscoverConfig},
+    {"doSetDefaultFrame", "([B)V", (void*)nfcManager_doSetDefaultFrame},
 };
 
 /*******************************************************************************
