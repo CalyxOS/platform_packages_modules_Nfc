@@ -1296,6 +1296,7 @@ public class HostEmulationManager {
                     if (nfcHceLatencyEvents()) {
                         Trace.endAsyncSection(EVENT_HCE_BIND_SERVICE, 0);
                     }
+                    mContext.unbindService(connection);
                     Log.e(TAG, "bindServiceIfNeededLocked: Could not bind service");
                 }
             } catch (SecurityException e) {
@@ -1470,6 +1471,7 @@ public class HostEmulationManager {
                 if (nfcHceLatencyEvents()) {
                     Trace.endAsyncSection(EVENT_HCE_BIND_PAYMENT_SERVICE, 0);
                 }
+                mContext.unbindService(mPaymentConnection);
                 Log.e(TAG, "bindPaymentServiceLocked: Could not bind (persistent) "
                         + "payment service");
             }
