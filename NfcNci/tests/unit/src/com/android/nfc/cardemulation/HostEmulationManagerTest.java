@@ -21,6 +21,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -67,6 +68,7 @@ import com.android.nfc.NfcInjector;
 import com.android.nfc.NfcService;
 import com.android.nfc.NfcStatsLog;
 import com.android.nfc.PerfettoTrigger;
+import com.android.nfc.ScreenStateHelper;
 import com.android.nfc.cardemulation.util.StatsdUtils;
 
 import org.junit.After;
@@ -121,6 +123,7 @@ public class HostEmulationManagerTest {
     @Mock private NfcService mNfcService;
     @Mock private NfcInjector mNfcInjector;
     @Mock private NfcEventLog mNfcEventLog;
+    @Mock private ScreenStateHelper mScreenStateHelper;
     @Mock private StatsdUtils mStatsdUtils;
     @Mock private DeviceConfigFacade mDeviceConfigFacade;
     @Mock private Resources mResources;
@@ -159,6 +162,7 @@ public class HostEmulationManagerTest {
         when(mNfcInjector.getNfcEventLog()).thenReturn(mNfcEventLog);
         when(mNfcInjector.getNfcPackageName()).thenReturn(NFC_PACKAGE);
         when(mNfcInjector.getDeviceConfigFacade()).thenReturn(mDeviceConfigFacade);
+        when(mNfcInjector.getScreenStateHelper()).thenReturn(mScreenStateHelper);
         when(com.android.nfc.flags.Flags.statsdCeEventsFlag()).thenReturn(true);
         when(ActivityManager.getCurrentUser()).thenReturn(0);
         when(mContext.getSystemService(eq(PowerManager.class))).thenReturn(mPowerManager);
@@ -657,6 +661,8 @@ public class HostEmulationManagerTest {
         when(mNfcService.isSecureNfcEnabled()).thenReturn(false);
         when(mKeyguardManager.isKeyguardLocked()).thenReturn(true);
         when(mPowerManager.isScreenOn()).thenReturn(false);
+        when(mScreenStateHelper.checkScreenState(anyBoolean())).thenReturn(
+                ScreenStateHelper.SCREEN_STATE_OFF_LOCKED);
         aidResolveInfo.defaultService = apduServiceInfo;
         when(mRegisteredAidCache.resolveAid(eq(MOCK_AID))).thenReturn(aidResolveInfo);
 
@@ -688,6 +694,8 @@ public class HostEmulationManagerTest {
         when(mNfcService.isSecureNfcEnabled()).thenReturn(false);
         when(mKeyguardManager.isKeyguardLocked()).thenReturn(true);
         when(mPowerManager.isScreenOn()).thenReturn(true);
+        when(mScreenStateHelper.checkScreenState(anyBoolean())).thenReturn(
+                ScreenStateHelper.SCREEN_STATE_ON_LOCKED);
         aidResolveInfo.defaultService = apduServiceInfo;
         when(mRegisteredAidCache.resolveAid(eq(MOCK_AID))).thenReturn(aidResolveInfo);
 
@@ -751,6 +759,8 @@ public class HostEmulationManagerTest {
         when(mNfcService.isSecureNfcEnabled()).thenReturn(false);
         when(mKeyguardManager.isKeyguardLocked()).thenReturn(false);
         when(mPowerManager.isScreenOn()).thenReturn(true);
+                when(mScreenStateHelper.checkScreenState(anyBoolean())).thenReturn(
+                ScreenStateHelper.SCREEN_STATE_ON_UNLOCKED);
         when(mRegisteredAidCache.resolveAid(eq(MOCK_AID))).thenReturn(aidResolveInfo);
         mHostEmulationManager.mActiveServiceName = WALLET_PAYMENT_SERVICE;
         mHostEmulationManager.mActiveService = mMessenger;
@@ -809,6 +819,8 @@ public class HostEmulationManagerTest {
         when(mNfcService.isSecureNfcEnabled()).thenReturn(false);
         when(mKeyguardManager.isKeyguardLocked()).thenReturn(false);
         when(mPowerManager.isScreenOn()).thenReturn(true);
+        when(mScreenStateHelper.checkScreenState(anyBoolean())).thenReturn(
+                ScreenStateHelper.SCREEN_STATE_ON_UNLOCKED);
         when(mRegisteredAidCache.resolveAid(eq(MOCK_AID))).thenReturn(aidResolveInfo);
         mHostEmulationManager.mActiveServiceName = WALLET_PAYMENT_SERVICE;
         mHostEmulationManager.mPaymentServiceBound = false;
@@ -916,6 +928,8 @@ public class HostEmulationManagerTest {
         when(mNfcService.isSecureNfcEnabled()).thenReturn(false);
         when(mKeyguardManager.isKeyguardLocked()).thenReturn(false);
         when(mPowerManager.isScreenOn()).thenReturn(true);
+        when(mScreenStateHelper.checkScreenState(anyBoolean())).thenReturn(
+                ScreenStateHelper.SCREEN_STATE_ON_UNLOCKED);
         when(mRegisteredAidCache.resolveAid(eq(MOCK_AID))).thenReturn(aidResolveInfo);
         mHostEmulationManager.mActiveServiceName = WALLET_PAYMENT_SERVICE;
         mHostEmulationManager.mActiveService = mMessenger;
@@ -958,6 +972,8 @@ public class HostEmulationManagerTest {
         when(mNfcService.isSecureNfcEnabled()).thenReturn(false);
         when(mKeyguardManager.isKeyguardLocked()).thenReturn(false);
         when(mPowerManager.isScreenOn()).thenReturn(true);
+        when(mScreenStateHelper.checkScreenState(anyBoolean())).thenReturn(
+                ScreenStateHelper.SCREEN_STATE_ON_UNLOCKED);
         when(mRegisteredAidCache.resolveAid(eq(MOCK_AID))).thenReturn(aidResolveInfo);
         mHostEmulationManager.mActiveServiceName = WALLET_PAYMENT_SERVICE;
         mHostEmulationManager.mPaymentServiceBound = false;
@@ -1343,6 +1359,8 @@ public class HostEmulationManagerTest {
         when(mNfcService.isSecureNfcEnabled()).thenReturn(false);
         when(mKeyguardManager.isKeyguardLocked()).thenReturn(false);
         when(mPowerManager.isScreenOn()).thenReturn(true);
+        when(mScreenStateHelper.checkScreenState(anyBoolean())).thenReturn(
+                ScreenStateHelper.SCREEN_STATE_ON_UNLOCKED);
         when(mRegisteredAidCache.resolveAid(eq(MOCK_AID))).thenReturn(aidResolveInfo);
         mHostEmulationManager.mActiveServiceName = WALLET_PAYMENT_SERVICE;
         mHostEmulationManager.mPaymentServiceBound = false;
